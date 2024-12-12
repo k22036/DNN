@@ -461,18 +461,24 @@ public:
         return r;
     }
 
-    cuMat toDense(){
+    cuMat toDense() {
         cuMat r(rows, cols);
 
+        // Create Matrix Descriptor
         cusparseMatDescr_t descrC;
         cusparseCreateMatDescr(&descrC);
         cusparseSetMatType(descrC, CUSPARSE_MATRIX_TYPE_GENERAL);
         cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
 
+        // Specify block dimensions
         int rowBlockDim = 2; // Example block dimensions
         int colBlockDim = 2;
 
-        // Calculate buffer size
+        // Allocate temporary buffers for BSR format
+        float* bsrValDevice;
+        int* bsrRowPtrDevice;
+        int* bsrColIndDevice;
+
         size_t bufferSize = 0;
         cusparseScsr2gebsr_bufferSize(
             cuHandle,
@@ -484,15 +490,14 @@ public:
             csrRowPtrDevice,
             csrColIndDevice,
             descrC,
-            r.bsrValDevice,
-            r.bsrRowPtrDevice,
-            r.bsrColIndDevice,
+            bsrValDevice,
+            bsrRowPtrDevice,
+            bsrColIndDevice,
             rowBlockDim,
             colBlockDim,
             &bufferSize
         );
 
-        // Allocate buffer
         void* buffer;
         cudaMalloc(&buffer, bufferSize);
 
@@ -507,26 +512,27 @@ public:
             csrRowPtrDevice,
             csrColIndDevice,
             descrC,
-            r.bsrValDevice,
-            r.bsrRowPtrDevice,
-            r.bsrColIndDevice,
+            bsrValDevice,
+            bsrRowPtrDevice,
+            bsrColIndDevice,
             rowBlockDim,
             colBlockDim,
             buffer
         );
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            std::cout << "toDense error" << std::endl;
+            std::cerr << "toDense error: " << status << std::endl;
         }
 
-        // Free buffer
+        // Free temporary resources
         cudaFree(buffer);
         cusparseDestroyMatDescr(descrC);
 
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
 
         return r;
     }
+
 
 
     cuMatSparse toSparse(cuMat &a, int numVals){
