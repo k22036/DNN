@@ -386,18 +386,66 @@ public:
     }
 
 
-    void transpose(cuMatSparse &r){
-        cusparseStatus_t status = cusparseScsru2csr(cuHandle, rows, cols, numVals,
-                         csrValDevice, csrRowPtrDevice,
-                         csrColIndDevice, r.csrValDevice,
-                         r.csrColIndDevice, r.csrRowPtrDevice,
-                         CUSPARSE_ACTION_NUMERIC,
-                         CUSPARSE_INDEX_BASE_ZERO);
+    void transpose(cuMatSparse &r) {
+        // CUDAのステータスを格納
+        cusparseStatus_t status;
+
+        // デバイスメモリの作業領域を確保
+        size_t bufferSize = 0;
+        void* dBuffer = nullptr;
+
+        // バッファサイズを取得
+        status = cusparseCsr2cscEx2_bufferSize(
+            cuHandle,
+            rows,                      // 行列の行数
+            cols,                      // 行列の列数
+            numVals,                   // 非ゼロ要素数
+            csrValDevice,              // 入力CSR行列の値
+            csrRowPtrDevice,           // 入力CSR行列の行ポインタ
+            csrColIndDevice,           // 入力CSR行列の列インデックス
+            r.csrValDevice,            // 出力CSC行列の値
+            r.csrRowPtrDevice,         // 出力CSC行列の列ポインタ
+            r.csrColIndDevice,         // 出力CSC行列の行インデックス
+            CUSPARSE_ACTION_NUMERIC,   // 数値またはパターンモード
+            CUSPARSE_INDEX_BASE_ZERO,  // インデックスの基準 (0)
+            CUSPARSE_CSR2CSC_ALG1,     // アルゴリズムを選択
+            &bufferSize);              // 必要なバッファサイズを出力
+
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            cout << "transpose error" << endl;
+            std::cerr << "Failed to calculate buffer size for CSR2CSC: " << status << std::endl;
+            return;
         }
+
+        // バッファをデバイスメモリ上で確保
+        cudaMalloc(&dBuffer, bufferSize);
+
+        // CSR形式をCSC形式 (転置) に変換
+        status = cusparseCsr2cscEx2(
+            cuHandle,
+            rows,
+            cols,
+            numVals,
+            csrValDevice,
+            csrRowPtrDevice,
+            csrColIndDevice,
+            r.csrValDevice,
+            r.csrRowPtrDevice,
+            r.csrColIndDevice,
+            CUSPARSE_ACTION_NUMERIC,
+            CUSPARSE_INDEX_BASE_ZERO,
+            CUSPARSE_CSR2CSC_ALG1,
+            dBuffer);
+
+        if (status != CUSPARSE_STATUS_SUCCESS) {
+            std::cerr << "Failed to transpose CSR matrix to CSC: " << status << std::endl;
+        }
+
+        // デバイスメモリの解放
+        cudaFree(dBuffer);
+
         cudaDeviceSynchronize();
     }
+
 
 
     cuMatSparse transpose(){
