@@ -559,57 +559,15 @@ public:
         // Allocate memory for nnz per row/column
         int *nnzPerRowColumn;
         cudaMalloc((void **)&nnzPerRowColumn, sizeof(int) * r.rows);
-        int *nnzTotalDevHostPtr;
-        cudaMalloc((void *)&nnzTotalDevHostPtr, sizeof(int));
-
-        // Compute the number of non-zero elements per row and the total nnz
-        cusparseStatus_t status = cusparseSnnz(
-            r.cuHandle,
-            CUSPARSE_DIRECTION_ROW,
-            r.rows,
-            r.cols,
-            r.descr,
-            a.mDevice,
-            r.rows,
-            nnzPerRowColumn,
-            nnzTotalDevHostPtr
-        );
-
-        if (status != CUSPARSE_STATUS_SUCCESS) {
-            std::cerr << "toSparse cusparseSnnz error: " << status << std::endl;
-            cudaFree(nnzPerRowColumn);
-            return r;
-        }
 
         // Buffer for CSR to BSR conversion
         size_t bufferSize = 0;
-        cusparseStatus_t bufferStatus = cusparseXcsr2gebsrNnz(
-            r.cuHandle,
-            CUSPARSE_DIRECTION_ROW,
-            r.rows,
-            r.cols,
-            r.descr,
-            r.csrRowPtrDevice,
-            r.csrColIndDevice,
-            r.descr,
-            r.csrRowPtrDevice,
-            2, // Example row block dimension
-            2, // Example column block dimension
-            nnzTotalDevHostPtr,
-            nullptr
-        );
-
-        if (bufferStatus != CUSPARSE_STATUS_SUCCESS) {
-            std::cerr << "toSparse cusparseXcsr2gebsrNnz error: " << bufferStatus << std::endl;
-            cudaFree(nnzPerRowColumn);
-            return r;
-        }
 
         void *buffer;
         cudaMalloc(&buffer, bufferSize);
 
         // Perform CSR to BSR conversion
-        status = cusparseScsr2gebsr(
+        cusparseStatus_t status = cusparseScsr2gebsr(
             r.cuHandle,
             CUSPARSE_DIRECTION_ROW,
             r.rows,
