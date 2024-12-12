@@ -429,7 +429,7 @@ public:
             csrRowPtrDevice,
             csrColIndDevice,
             r.csrValDevice,
-            r.bsrRowPtrDevice,
+            r.csrRowPtrDevice,
             r.csrColIndDevice,
             CUDA_R_32F,                // 修正: データ型
             CUSPARSE_ACTION_NUMERIC,   // 数値データを転送
@@ -458,8 +458,6 @@ public:
 
         transpose(r);
 
-        cudaFree(nnzPerRowColumn);
-        cudaFree(nnzTotalDevHostPtr);
         cudaFree(nnzPerRowColumn);
         cudaFree(nnzTotalDevHostPtr);
         return r;
@@ -566,9 +564,6 @@ public:
         int *nnzTotalDevHostPtr;
         cudaMalloc((void**)&nnzTotalDevHostPtr, sizeof(int));
 
-        // Allocate memory for bsrRowPtrDevice
-        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
-
         // Compute the number of non-zero elements per row and the total nnz
         cusparseStatus_t status = cusparseSnnz(
             r.cuHandle,
@@ -587,18 +582,6 @@ public:
             cudaFree(nnzPerRowColumn);
             return r;
         }
-        // Allocate memory for bsrRowPtrDevice
-        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
-
-        // Allocate memory for bsrValDevice
-        cudaMalloc((void**)&r.bsrValDevice, nnzTotalDevHostPtr * sizeof(float));
-        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
-
-        // Allocate memory for bsrColIndDevice
-        cudaMalloc((void**)&r.bsrColIndDevice, nnzTotalDevHostPtr * sizeof(int));
-        // Allocate memory for bsrValDevice
-        cudaMalloc((void**)&r.bsrValDevice, nnzTotalDevHostPtr * sizeof(float));
-        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
 
         // Buffer for CSR to BSR conversion
         size_t bufferSize = 0;
@@ -611,7 +594,7 @@ public:
             r.csrRowPtrDevice,
             r.csrColIndDevice,
             r.descr,
-            r.bsrRowPtrDevice,
+            r.csrRowPtrDevice,
             2, // Example row block dimension
             2, // Example column block dimension
             &nnzTotalDevHostPtr,
@@ -638,9 +621,9 @@ public:
             r.csrRowPtrDevice,
             r.csrColIndDevice,
             r.descr,
-            r.bsrValDevice,
-            r.bsrRowPtrDevice,
-            r.bsrColIndDevice,
+            r.csrValDevice,
+            r.csrRowPtrDevice,
+            r.csrColIndDevice,
             2, // Row block dimension
             2, // Column block dimension
             buffer
