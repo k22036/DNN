@@ -244,31 +244,61 @@ public:
 
     void s_s_dot(cuMatSparse &b, cuMatSparse &c){
 
-        cusparseStatus_t status =
-                cusparseScsrgeam2(cuHandle,
-                        CUSPARSE_OPERATION_NON_TRANSPOSE,
-                        CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                 rows,
-                                 b.cols,
-                                 cols,
-                                 descr,
-                                 numVals,
-                                 csrValDevice,
-                                 csrRowPtrDevice,
-                                 csrColIndDevice,
-                                 b.descr,
-                                 b.numVals,
-                                 b.csrValDevice,
-                                 b.csrRowPtrDevice,
-                                 b.csrColIndDevice,
-                                 c.descr,
-                                 c.csrValDevice,
-                                 c.csrRowPtrDevice,
-                                 c.csrColIndDevice );
+        // cusparseStatus_t status =
+        //         cusparseScsrgeam2(cuHandle,
+        //                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+        //                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+        //                          rows,
+        //                          b.cols,
+        //                          cols,
+        //                          descr,
+        //                          numVals,
+        //                          csrValDevice,
+        //                          csrRowPtrDevice,
+        //                          csrColIndDevice,
+        //                          b.descr,
+        //                          b.numVals,
+        //                          b.csrValDevice,
+        //                          b.csrRowPtrDevice,
+        //                          b.csrColIndDevice,
+        //                          c.descr,
+        //                          c.csrValDevice,
+        //                          c.csrRowPtrDevice,
+        //                          c.csrColIndDevice );
+
+        float alpha = 1.0f;
+        float beta = 1.0f;
+
+        // バッファサイズ計算
+        size_t bufferSize;
+        cusparseScsrgeam2_bufferSizeExt(cuHandle, rows, b.cols, &alpha, descr, numVals,
+                                        csrValDevice, csrRowPtrDevice, csrColIndDevice,
+                                        &beta, b.descr, b.numVals, b.csrValDevice,
+                                        b.csrRowPtrDevice, b.csrColIndDevice,
+                                        c.descr, c.csrValDevice, c.csrRowPtrDevice,
+                                        c.csrColIndDevice, &bufferSize);
+
+        // バッファメモリ確保
+        void *buffer;
+        cudaMalloc(&buffer, bufferSize);
+
+        // cusparseScsrgeam2呼び出し
+        cusparseStatus_t status = cusparseScsrgeam2(
+            cuHandle, rows, b.cols,
+            &alpha, descr, numVals,
+            csrValDevice, csrRowPtrDevice, csrColIndDevice,
+            &beta, b.descr, b.numVals, b.csrValDevice,
+            b.csrRowPtrDevice, b.csrColIndDevice,
+            c.descr, c.csrValDevice,
+            c.csrRowPtrDevice, c.csrColIndDevice, buffer);
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
-                    cout << "ERROR cuMatSparse::s_s_dot cusparseXcsrgeamNnz" << endl;
+            std::cerr << "CUSPARSE error: " << status << std::endl;
         }
+
+        // バッファメモリ解放
+        cudaFree(buffer);
+
         cudaDeviceSynchronize();
 
     }
