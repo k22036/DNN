@@ -461,26 +461,61 @@ public:
         return r;
     }
 
-    cuMat toDense() {
-        cuMat r(rows, cols);
-
-        cusparseMatDescr_t descrA;
-        cusparseCreateMatDescr(&descrA);
-        cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
-        cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO);
-
-        cusparseStatus_t status = cusparseScsr2dense(
-            cuHandle, rows, cols, descrA,
-            csrValDevice, csrRowPtrDevice, csrColIndDevice,
-            r.mDevice, rows);
-
+    cuMatDense toDense() {
+        cuMatDense r(rows, cols);
+    
+        // Allocate buffer for conversion
+        size_t bufferSize = 0;
+        cusparseStatus_t status = cusparseScsr2gebsr_bufferSize(
+        cuHandle,
+        CUSPARSE_DIRECTION_ROW,
+        rows,
+        cols,
+        descr,
+        csrValDevice,
+        csrRowPtrDevice,
+        csrColIndDevice,
+        1, // row block dimension
+        1, // column block dimension
+        &bufferSize
+        );
+    
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            std::cerr << "toDense error" << std::endl;
-            throw std::runtime_error("toDense error");
+        std::cerr << "Buffer size calculation failed: " << status << std::endl;
+        throw std::runtime_error("toDense conversion failed");
         }
-
+    
+        void* buffer;
+        cudaMalloc(&buffer, bufferSize);
+    
+        // Perform CSR to dense conversion
+        status = cusparseScsr2gebsr(
+        cuHandle,
+        CUSPARSE_DIRECTION_ROW,
+        rows,
+        cols,
+        descr,
+        csrValDevice,
+        csrRowPtrDevice,
+        csrColIndDevice,
+        descr, // Using the same descriptor for BSR
+        r.mDevice,
+        r.csrRowPtrDevice,
+        r.csrColIndDevice,
+        1, // row block dimension
+        1, // column block dimension
+        buffer
+        );
+    
+        if (status != CUSPARSE_STATUS_SUCCESS) {
+        std::cerr << "toDense conversion error: " << status << std::endl;
+        cudaFree(buffer);
+        throw std::runtime_error("toDense conversion failed");
+        }
+    
+        cudaFree(buffer);
         cudaDeviceSynchronize();
-
+    
         return r;
     }
 
