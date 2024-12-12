@@ -245,7 +245,7 @@ public:
     void s_s_dot(cuMatSparse &b, cuMatSparse &c){
 
         cusparseStatus_t status =
-                cusparseScsrgemm(cuHandle,
+                cusparseScsrgeam2(cuHandle,
                         CUSPARSE_OPERATION_NON_TRANSPOSE,
                         CUSPARSE_OPERATION_NON_TRANSPOSE,
                                  rows,
@@ -277,7 +277,7 @@ public:
 
         float alpha = 1.;
         float beta = 0.;
-        cusparseStatus_t status = cusparseScsrmm(cuHandle,
+        cusparseStatus_t status = cusparseSbsrmm(cuHandle,
                 CUSPARSE_OPERATION_NON_TRANSPOSE,
             rows,
             b.cols,
@@ -294,7 +294,7 @@ public:
             c.mDevice,
             c.rows);
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            cout << "ERROR cuMatSparse::s_d_dot cusparseScsrmm" << endl;
+            cout << "ERROR cuMatSparse::s_d_dot cusparseSbsrmm" << endl;
             cout << "a rows:" << rows << " cols:" << cols << endl;
             cout << "b rows:" << b.rows << " cols:" << b.cols << endl;
             cout << "c rows:" << c.rows << " cols:" << c.cols << endl;
@@ -345,7 +345,7 @@ public:
 
 
     void transpose(cuMatSparse &r){
-        cusparseStatus_t status = cusparseScsr2csc(cuHandle, rows, cols, numVals,
+        cusparseStatus_t status = cusparseScsru2csr(cuHandle, rows, cols, numVals,
                          csrValDevice, csrRowPtrDevice,
                          csrColIndDevice, r.csrValDevice,
                          r.csrColIndDevice, r.csrRowPtrDevice,
@@ -372,7 +372,7 @@ public:
     cuMat toDense(){
         cuMat r(rows, cols);
 
-        cusparseStatus_t status = cusparseScsr2dense(cuHandle,
+        cusparseStatus_t status = cusparseScsr2gebsr(cuHandle,
                                             r.rows,
                                             r.cols,
                                             descr,
@@ -409,7 +409,7 @@ public:
             cudaDeviceSynchronize();
 
 
-            status = cusparseSdense2csr(r.cuHandle, r.rows, r.cols,
+            status = cusparseSgebsr2csr(r.cuHandle, r.rows, r.cols,
                             r.descr,
                             a.mDevice,
                             r.rows, nnzPerRowColumn,
@@ -417,7 +417,7 @@ public:
                             r.csrRowPtrDevice, r.csrColIndDevice);
 
             if (status != CUSPARSE_STATUS_SUCCESS) {
-                        cout << "toSparse cusparseSdense2csr error" << endl;
+                        cout << "toSparse cusparseSgebsr2csr error" << endl;
             }
             cudaDeviceSynchronize();
 
