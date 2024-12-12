@@ -3,8 +3,8 @@ NVCC=nvcc
 CUDA_TOP=/usr/local/cuda
 INC=-I$(CUDA_TOP)/include -I./cuMat
 LIB=-L$(CUDA_TOP)/lib64 -L./cuMat -lcublas -lcudart -lcudnn -lm -lcumat -lcusparse -lboost_serialization -lmecab -lboost_system -lpng
-#OTHER_OPTS=-std=c++11 -pthread -O2 -fpermissive
-OTHER_OPTS=-std=c++11 -pthread -O2
+OTHER_OPTS=-std=c++11 -pthread -O2 -fpermissive
+# OTHER_OPTS=-std=c++11 -pthread -O2
 
 test: test.o variable.o function.o dataset.o mnist.o optimizer.o graph.o
 	$(CC) -o test test.o variable.o function.o dataset.o mnist.o optimizer.o graph.o $(INC) $(LIB) $(OTHER_OPTS)
