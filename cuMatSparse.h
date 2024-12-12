@@ -553,38 +553,94 @@ public:
 
 
 
-    cuMatSparse toSparse(cuMat &a, int numVals){
+    cuMatSparse toSparse(cuMat &a, int numVals) {
+        cuMatSparse r(a.rows, a.cols, a.rows);
 
-            cuMatSparse r(a.rows, a.cols, a.rows);
+        // Allocate memory for nnz per row/column
+        int *nnzPerRowColumn;
+        cudaMalloc((void **)&nnzPerRowColumn, sizeof(int) * r.rows);
 
-            int *nnzPerRowColumn;
-            cudaMalloc((void **)&nnzPerRowColumn, sizeof(int) * r.rows);
-            int nnzTotalDevHostPtr = numVals;
-            cusparseStatus_t status = cusparseSnnz(r.cuHandle, CUSPARSE_DIRECTION_ROW, r.rows,
-                         r.cols, r.descr,
-                         a.mDevice,
-                         r.rows, nnzPerRowColumn, &nnzTotalDevHostPtr);
-            if (status != CUSPARSE_STATUS_SUCCESS) {
-                                    cout << "toSparse cusparseSnnz error" << endl;
-                        }
+        int nnzTotalDevHostPtr = numVals;
 
-            cudaDeviceSynchronize();
+        // Compute the number of non-zero elements per row and the total nnz
+        cusparseStatus_t status = cusparseSnnz(
+            r.cuHandle,
+            CUSPARSE_DIRECTION_ROW,
+            r.rows,
+            r.cols,
+            r.descr,
+            a.mDevice,
+            r.rows,
+            nnzPerRowColumn,
+            &nnzTotalDevHostPtr
+        );
 
-
-            status = cusparseSgebsr2csr(r.cuHandle, r.rows, r.cols,
-                            r.descr,
-                            a.mDevice,
-                            r.rows, nnzPerRowColumn,
-                            r.csrValDevice,
-                            r.csrRowPtrDevice, r.csrColIndDevice);
-
-            if (status != CUSPARSE_STATUS_SUCCESS) {
-                        cout << "toSparse cusparseSgebsr2csr error" << endl;
-            }
-            cudaDeviceSynchronize();
-
+        if (status != CUSPARSE_STATUS_SUCCESS) {
+            std::cerr << "toSparse cusparseSnnz error: " << status << std::endl;
+            cudaFree(nnzPerRowColumn);
             return r;
+        }
+
+        cudaDeviceSynchronize();
+
+        // Buffer for CSR to BSR conversion
+        size_t bufferSize = 0;
+        cusparseStatus_t bufferStatus = cusparseXcsr2gebsrNnz(
+            r.cuHandle,
+            CUSPARSE_DIRECTION_ROW,
+            r.rows,
+            r.cols,
+            r.descr,
+            r.csrRowPtrDevice,
+            r.csrColIndDevice,
+            r.descr,
+            r.bsrRowPtrDevice,
+            2, // Example row block dimension
+            2, // Example column block dimension
+            &nnzTotalDevHostPtr,
+            nullptr
+        );
+
+        if (bufferStatus != CUSPARSE_STATUS_SUCCESS) {
+            std::cerr << "toSparse cusparseXcsr2gebsrNnz error: " << bufferStatus << std::endl;
+            cudaFree(nnzPerRowColumn);
+            return r;
+        }
+
+        void *buffer;
+        cudaMalloc(&buffer, bufferSize);
+
+        // Perform CSR to BSR conversion
+        status = cusparseScsr2gebsr(
+            r.cuHandle,
+            CUSPARSE_DIRECTION_ROW,
+            r.rows,
+            r.cols,
+            r.descr,
+            a.mDevice,
+            r.csrRowPtrDevice,
+            r.csrColIndDevice,
+            r.descr,
+            r.bsrValDevice,
+            r.bsrRowPtrDevice,
+            r.bsrColIndDevice,
+            2, // Row block dimension
+            2, // Column block dimension
+            buffer
+        );
+
+        if (status != CUSPARSE_STATUS_SUCCESS) {
+            std::cerr << "toSparse cusparseScsr2gebsr error: " << status << std::endl;
+        }
+
+        // Free allocated resources
+        cudaFree(nnzPerRowColumn);
+        cudaFree(buffer);
+        cudaDeviceSynchronize();
+
+        return r;
     }
+
 };
 
 
