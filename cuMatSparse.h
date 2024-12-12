@@ -458,8 +458,6 @@ public:
 
         transpose(r);
 
-        cudaFree(nnzPerRowColumn);
-        cudaFree(nnzTotalDevHostPtr);
         return r;
     }
 
@@ -561,8 +559,8 @@ public:
         // Allocate memory for nnz per row/column
         int *nnzPerRowColumn;
         cudaMalloc((void **)&nnzPerRowColumn, sizeof(int) * r.rows);
-        int *nnzTotalDevHostPtr;
-        cudaMalloc((void**)&nnzTotalDevHostPtr, sizeof(int));
+        // int *nnzTotalDevHostPtr;
+        // cudaMalloc((void**)&nnzTotalDevHostPtr, sizeof(int));
 
         // Compute the number of non-zero elements per row and the total nnz
         cusparseStatus_t status = cusparseSnnz(
@@ -574,7 +572,7 @@ public:
             a.mDevice,
             r.rows,
             nnzPerRowColumn,
-            &nnzTotalDevHostPtr
+            nnzTotalDevHostPtr
         );
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
@@ -597,7 +595,7 @@ public:
             r.csrRowPtrDevice,
             2, // Example row block dimension
             2, // Example column block dimension
-            &nnzTotalDevHostPtr,
+            nnzTotalDevHostPtr,
             nullptr
         );
 
