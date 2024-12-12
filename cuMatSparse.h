@@ -464,7 +464,6 @@ public:
     cuMat toDense() {
         cuMat r(rows, cols);
 
-        // CSR 行列から GEBSR 行列への変換
         cusparseMatDescr_t descrA, descrC;
         cusparseCreateMatDescr(&descrA);
         cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
@@ -477,29 +476,25 @@ public:
         // バッファを確保
         void* pBuffer = nullptr;
         size_t bufferSize = 0;
-        cusparseScsr2gebsr_bufferSize(cuHandle, CUSPARSE_DIRECTION_ROW, rows, cols, descrA, 
-                                    csrValDevice, csrRowPtrDevice, csrColIndDevice, 
-                                    descrC, r.mDevice, rows, &bufferSize);
+
+        // bufferSizeを計算
+        cusparseStatus_t status = cusparseScsr2gebsr_bufferSize(
+            cuHandle, CUSPARSE_DIRECTION_ROW, rows, cols, descrA,
+            csrValDevice, csrRowPtrDevice, csrColIndDevice,
+            descrC, nullptr, rows, &bufferSize);
+
+        if (status != CUSPARSE_STATUS_SUCCESS) {
+            std::cerr << "Buffer size calculation error" << std::endl;
+            return r;
+        }
 
         cudaMalloc(&pBuffer, bufferSize);  // バッファのメモリを確保
 
-        cusparseStatus_t status = cusparseScsr2gebsr(
-            cuHandle,
-            CUSPARSE_DIRECTION_ROW,   // 行方向のブロックストレージ
-            rows,                     // CSR 行列の行数
-            cols,                     // CSR 行列の列数
-            descrA,                   // CSR 行列の記述子
-            csrValDevice,             // CSR 行列の値
-            csrRowPtrDevice,          // CSR 行列の行ポインタ
-            csrColIndDevice,          // CSR 行列の列インデックス
-            descrC,                   // 出力 GEBSR 行列の記述子
-            r.mDevice,                // 出力 GEBSR 行列の値
-            r.rows,                   // GEBSR 行列の行ポインタ
-            r.cols,                   // GEBSR 行列の列インデックス
-            1,                        // 行ブロックのサイズ
-            1,                        // 列ブロックのサイズ
-            pBuffer                   // 計算用バッファ
-        );
+        // 実際の変換
+        status = cusparseScsr2gebsr(
+            cuHandle, CUSPARSE_DIRECTION_ROW, rows, cols, descrA,
+            csrValDevice, csrRowPtrDevice, csrColIndDevice,
+            descrC, r.mDevice, r.rows, r.cols, 1, 1, pBuffer);
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
             std::cerr << "toDense error" << std::endl;
@@ -513,6 +508,7 @@ public:
 
         return r;
     }
+
 
 
 
