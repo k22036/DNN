@@ -307,30 +307,36 @@ public:
         float alpha = 1.0f;
         float beta = 0.0f;
 
+        int blockDim = 4; // 修正: BSRブロックサイズを適切に設定 (例: 4)
+        int mb = rows / blockDim; // 修正: BSR行列のブロック行数
+        int kb = cols / blockDim; // 修正: BSR行列のブロック列数
+
         cusparseStatus_t status = cusparseSbsrmm(
             cuHandle,
-            CUSPARSE_DIRECTION_ROW, // 修正: ブロックストレージの方向を指定
-            CUSPARSE_OPERATION_NON_TRANSPOSE,
-            rows,
-            b.cols,
-            cols,
-            numVals,
-            &alpha,
-            descr,
-            csrValDevice,
-            csrRowPtrDevice,
-            csrColIndDevice,
-            b.mDevice,
-            b.rows,
-            &beta,
-            c.mDevice,
-            c.rows);
+            CUSPARSE_DIRECTION_ROW,                // 修正: BSR行列のストレージ方向
+            CUSPARSE_OPERATION_NON_TRANSPOSE,     // 修正: Aの操作
+            CUSPARSE_OPERATION_NON_TRANSPOSE,     // 修正: Bの操作
+            mb,                                   // BSR行列Aのブロック行数
+            b.cols,                               // 行列Bの列数
+            kb,                                   // BSR行列Aのブロック列数
+            numVals,                              // 非ゼロ要素数
+            &alpha,                               // スカラーalpha
+            descr,                                // Aのディスクリプタ
+            csrValDevice,                         // BSR行列Aの値
+            csrRowPtrDevice,                      // BSR行列Aの行ポインタ
+            csrColIndDevice,                      // BSR行列Aの列インデックス
+            blockDim,                             // ブロックサイズ
+            b.mDevice,                            // 行列Bの値
+            b.rows,                               // 行列Bのリード数
+            &beta,                                // スカラーbeta
+            c.mDevice,                            // 出力行列C
+            c.rows);                              // 行列Cのリード数
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            std::cout << "ERROR cuMatSparse::s_d_dot cusparseSbsrmm" << std::endl;
-            std::cout << "a rows:" << rows << " cols:" << cols << std::endl;
-            std::cout << "b rows:" << b.rows << " cols:" << b.cols << std::endl;
-            std::cout << "c rows:" << c.rows << " cols:" << c.cols << std::endl;
+            std::cout << "ERROR: cuMatSparse::s_d_dot cusparseSbsrmm failed" << std::endl;
+            std::cout << "a rows (blocks): " << mb << ", cols (blocks): " << kb << std::endl;
+            std::cout << "b rows: " << b.rows << ", cols: " << b.cols << std::endl;
+            std::cout << "c rows: " << c.rows << ", cols: " << c.cols << std::endl;
 
             switch (status) {
                 case CUSPARSE_STATUS_NOT_INITIALIZED:
@@ -359,6 +365,7 @@ public:
 
         cudaDeviceSynchronize();
     }
+
 
 
 
