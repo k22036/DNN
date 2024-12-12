@@ -461,27 +461,53 @@ public:
         return r;
     }
 
-    cuMat toDense(){
+    cuMat toDense() {
         cuMat r(rows, cols);
 
-        cusparseStatus_t status = cusparseScsr2gebsr(cuHandle,
-                                            r.rows,
-                                            r.cols,
-                                            descr,
-                                            csrValDevice,
-                                            csrRowPtrDevice,
-                                            csrColIndDevice,
-                                            r.mDevice,
-                                            rows);
+        // デフォルトのブロックサイズを 1x1 に設定
+        int rowBlockDim = 1;
+        int colBlockDim = 1;
+
+        // BSR 行ポインタ配列と列インデックス配列のサイズ計算
+        int* bsrRowPtrDevice;
+        int* bsrColIndDevice;
+        float* bsrValDevice;
+
+        // GPU メモリの確保（適切なサイズを計算してください）
+        cudaMalloc((void**)&bsrRowPtrDevice, (rows + 1) * sizeof(int));
+        cudaMalloc((void**)&bsrColIndDevice, numVals * sizeof(int));
+        cudaMalloc((void**)&bsrValDevice, numVals * sizeof(float));
+
+        cusparseStatus_t status = cusparseScsr2gebsr(
+            cuHandle,
+            CUSPARSE_DIRECTION_ROW,   // 行方向のブロックストレージ
+            rows,                     // CSR 行列の行数
+            cols,                     // CSR 行列の列数
+            descr,                    // CSR 行列の記述子
+            csrValDevice,             // CSR 行列の値
+            csrRowPtrDevice,          // CSR 行列の行ポインタ
+            csrColIndDevice,          // CSR 行列の列インデックス
+            bsrValDevice,             // 出力 BSR 行列の値
+            bsrRowPtrDevice,          // 出力 BSR 行列の行ポインタ
+            bsrColIndDevice,          // 出力 BSR 行列の列インデックス
+            rowBlockDim,              // ブロック行サイズ
+            colBlockDim);             // ブロック列サイズ
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
-                    cout << "toDense error" << endl;
-                }
+            std::cerr << "toDense error" << std::endl;
+        }
 
+        // CUDA デバイス同期
         cudaDeviceSynchronize();
+
+        // メモリの解放
+        cudaFree(bsrRowPtrDevice);
+        cudaFree(bsrColIndDevice);
+        cudaFree(bsrValDevice);
 
         return r;
     }
+
 
     cuMatSparse toSparse(cuMat &a, int numVals){
 
