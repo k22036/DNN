@@ -429,7 +429,7 @@ public:
             csrRowPtrDevice,
             csrColIndDevice,
             r.csrValDevice,
-            r.csrRowPtrDevice,
+            r.bsrRowPtrDevice,
             r.csrColIndDevice,
             CUDA_R_32F,                // 修正: データ型
             CUSPARSE_ACTION_NUMERIC,   // 数値データを転送
@@ -458,6 +458,10 @@ public:
 
         transpose(r);
 
+        cudaFree(nnzPerRowColumn);
+        cudaFree(nnzTotalDevHostPtr);
+        cudaFree(nnzPerRowColumn);
+        cudaFree(nnzTotalDevHostPtr);
         return r;
     }
 
@@ -554,13 +558,16 @@ public:
 
 
     cuMatSparse toSparse(cuMat &a, int numVals) {
-        cuMatSparse r(a.rows, a.cols, a.rows);
+        cuMatSparse r(a.rows, a.cols, numVals);
 
         // Allocate memory for nnz per row/column
         int *nnzPerRowColumn;
         cudaMalloc((void **)&nnzPerRowColumn, sizeof(int) * r.rows);
+        int *nnzTotalDevHostPtr;
+        cudaMalloc((void**)&nnzTotalDevHostPtr, sizeof(int));
 
-        int nnzTotalDevHostPtr = numVals;
+        // Allocate memory for bsrRowPtrDevice
+        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
 
         // Compute the number of non-zero elements per row and the total nnz
         cusparseStatus_t status = cusparseSnnz(
@@ -580,8 +587,18 @@ public:
             cudaFree(nnzPerRowColumn);
             return r;
         }
+        // Allocate memory for bsrRowPtrDevice
+        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
 
-        cudaDeviceSynchronize();
+        // Allocate memory for bsrValDevice
+        cudaMalloc((void**)&r.bsrValDevice, nnzTotalDevHostPtr * sizeof(float));
+        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
+
+        // Allocate memory for bsrColIndDevice
+        cudaMalloc((void**)&r.bsrColIndDevice, nnzTotalDevHostPtr * sizeof(int));
+        // Allocate memory for bsrValDevice
+        cudaMalloc((void**)&r.bsrValDevice, nnzTotalDevHostPtr * sizeof(float));
+        cudaMalloc((void**)&r.bsrRowPtrDevice, (r.rows / 2 + 1) * sizeof(int));
 
         // Buffer for CSR to BSR conversion
         size_t bufferSize = 0;
