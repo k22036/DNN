@@ -303,12 +303,14 @@ public:
 
     }
 
-    void s_d_dot(cuMat &b, cuMat &c){
+    void s_d_dot(cuMat &b, cuMat &c) {
+        float alpha = 1.0f;
+        float beta = 0.0f;
 
-        float alpha = 1.;
-        float beta = 0.;
-        cusparseStatus_t status = cusparseSbsrmm(cuHandle,
-                CUSPARSE_OPERATION_NON_TRANSPOSE,
+        cusparseStatus_t status = cusparseSbsrmm(
+            cuHandle,
+            CUSPARSE_DIRECTION_ROW, // 修正: ブロックストレージの方向を指定
+            CUSPARSE_OPERATION_NON_TRANSPOSE,
             rows,
             b.cols,
             cols,
@@ -323,38 +325,41 @@ public:
             &beta,
             c.mDevice,
             c.rows);
+
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            cout << "ERROR cuMatSparse::s_d_dot cusparseSbsrmm" << endl;
-            cout << "a rows:" << rows << " cols:" << cols << endl;
-            cout << "b rows:" << b.rows << " cols:" << b.cols << endl;
-            cout << "c rows:" << c.rows << " cols:" << c.cols << endl;
-            switch(status) {
-            case CUSPARSE_STATUS_NOT_INITIALIZED:
-                cout << "CUSPARSE_STATUS_NOT_INITIALIZED" << endl;
-                break;
-            case CUSPARSE_STATUS_ALLOC_FAILED:
-                cout << "CUSPARSE_STATUS_ALLOC_FAILED" << endl;
-                break;
-            case CUSPARSE_STATUS_INVALID_VALUE:
-                cout << "CUSPARSE_STATUS_INVALID_VALUE" << endl;
-                break;
-            case CUSPARSE_STATUS_ARCH_MISMATCH:
-                cout << "CUSPARSE_STATUS_ARCH_MISMATCH" << endl;
-                break;
-            case CUSPARSE_STATUS_EXECUTION_FAILED:
-                cout << "CUSPARSE_STATUS_EXECUTION_FAILED" << endl;
-                break;
-            case CUSPARSE_STATUS_INTERNAL_ERROR:
-                cout << "CUSPARSE_STATUS_INTERNAL_ERROR" << endl;
-                break;
-            case CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
-                cout << "CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED" << endl;
-                break;
+            std::cout << "ERROR cuMatSparse::s_d_dot cusparseSbsrmm" << std::endl;
+            std::cout << "a rows:" << rows << " cols:" << cols << std::endl;
+            std::cout << "b rows:" << b.rows << " cols:" << b.cols << std::endl;
+            std::cout << "c rows:" << c.rows << " cols:" << c.cols << std::endl;
+
+            switch (status) {
+                case CUSPARSE_STATUS_NOT_INITIALIZED:
+                    std::cout << "CUSPARSE_STATUS_NOT_INITIALIZED" << std::endl;
+                    break;
+                case CUSPARSE_STATUS_ALLOC_FAILED:
+                    std::cout << "CUSPARSE_STATUS_ALLOC_FAILED" << std::endl;
+                    break;
+                case CUSPARSE_STATUS_INVALID_VALUE:
+                    std::cout << "CUSPARSE_STATUS_INVALID_VALUE" << std::endl;
+                    break;
+                case CUSPARSE_STATUS_ARCH_MISMATCH:
+                    std::cout << "CUSPARSE_STATUS_ARCH_MISMATCH" << std::endl;
+                    break;
+                case CUSPARSE_STATUS_EXECUTION_FAILED:
+                    std::cout << "CUSPARSE_STATUS_EXECUTION_FAILED" << std::endl;
+                    break;
+                case CUSPARSE_STATUS_INTERNAL_ERROR:
+                    std::cout << "CUSPARSE_STATUS_INTERNAL_ERROR" << std::endl;
+                    break;
+                case CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
+                    std::cout << "CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED" << std::endl;
+                    break;
             }
         }
-        cudaDeviceSynchronize();
 
+        cudaDeviceSynchronize();
     }
+
 
 
     void d_s_dot(cuMat &b, cuMat &r){
