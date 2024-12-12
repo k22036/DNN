@@ -464,25 +464,24 @@ public:
     cuMat toDense() {
         cuMat r(rows, cols);
 
-        // デフォルトのブロックサイズを 1x1 に設定
-        int rowBlockDim = 1;
-        int colBlockDim = 1;
-
-        // BSR 行ポインタ配列と列インデックス配列のサイズ計算
-        int* bsrRowPtrDevice;
-        int* bsrColIndDevice;
-        float* bsrValDevice;
-
-        // GPU メモリの確保（適切なサイズを計算してください）
-        cudaMalloc((void**)&bsrRowPtrDevice, (rows + 1) * sizeof(int));
-        cudaMalloc((void**)&bsrColIndDevice, numVals * sizeof(int));
-        cudaMalloc((void**)&bsrValDevice, numVals * sizeof(float));
-
-        // 行列記述子の作成
-        cusparseMatDescr_t descrA;
+        // CSR 行列から GEBSR 行列への変換
+        cusparseMatDescr_t descrA, descrC;
         cusparseCreateMatDescr(&descrA);
-        cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);  // 行列のタイプを指定（必要に応じて変更）
-        cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO);  // インデックスの基準をゼロに設定
+        cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
+        cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO);
+
+        cusparseCreateMatDescr(&descrC);
+        cusparseSetMatType(descrC, CUSPARSE_MATRIX_TYPE_GENERAL);
+        cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
+
+        // バッファを確保
+        void* pBuffer = nullptr;
+        size_t bufferSize = 0;
+        cusparseScsr2gebsr_bufferSize(cuHandle, CUSPARSE_DIRECTION_ROW, rows, cols, descrA, 
+                                    csrValDevice, csrRowPtrDevice, csrColIndDevice, 
+                                    descrC, r.mDevice, rows, &bufferSize);
+
+        cudaMalloc(&pBuffer, bufferSize);  // バッファのメモリを確保
 
         cusparseStatus_t status = cusparseScsr2gebsr(
             cuHandle,
@@ -493,11 +492,14 @@ public:
             csrValDevice,             // CSR 行列の値
             csrRowPtrDevice,          // CSR 行列の行ポインタ
             csrColIndDevice,          // CSR 行列の列インデックス
-            bsrValDevice,             // 出力 BSR 行列の値
-            bsrRowPtrDevice,          // 出力 BSR 行列の行ポインタ
-            bsrColIndDevice,          // 出力 BSR 行列の列インデックス
-            rowBlockDim,              // ブロック行サイズ
-            colBlockDim);             // ブロック列サイズ
+            descrC,                   // 出力 GEBSR 行列の記述子
+            r.mDevice,                // 出力 GEBSR 行列の値
+            r.rows,                   // GEBSR 行列の行ポインタ
+            r.cols,                   // GEBSR 行列の列インデックス
+            1,                        // 行ブロックのサイズ
+            1,                        // 列ブロックのサイズ
+            pBuffer                   // 計算用バッファ
+        );
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
             std::cerr << "toDense error" << std::endl;
@@ -506,10 +508,8 @@ public:
         // CUDA デバイス同期
         cudaDeviceSynchronize();
 
-        // メモリの解放
-        cudaFree(bsrRowPtrDevice);
-        cudaFree(bsrColIndDevice);
-        cudaFree(bsrValDevice);
+        // バッファの解放
+        cudaFree(pBuffer);
 
         return r;
     }
