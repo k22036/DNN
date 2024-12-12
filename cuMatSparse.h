@@ -478,12 +478,18 @@ public:
         cudaMalloc((void**)&bsrColIndDevice, numVals * sizeof(int));
         cudaMalloc((void**)&bsrValDevice, numVals * sizeof(float));
 
+        // 行列記述子の作成
+        cusparseMatDescr_t descrA;
+        cusparseCreateMatDescr(&descrA);
+        cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);  // 行列のタイプを指定（必要に応じて変更）
+        cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO);  // インデックスの基準をゼロに設定
+
         cusparseStatus_t status = cusparseScsr2gebsr(
             cuHandle,
             CUSPARSE_DIRECTION_ROW,   // 行方向のブロックストレージ
             rows,                     // CSR 行列の行数
             cols,                     // CSR 行列の列数
-            descr,                    // CSR 行列の記述子
+            descrA,                   // CSR 行列の記述子
             csrValDevice,             // CSR 行列の値
             csrRowPtrDevice,          // CSR 行列の行ポインタ
             csrColIndDevice,          // CSR 行列の列インデックス
@@ -507,6 +513,7 @@ public:
 
         return r;
     }
+
 
 
     cuMatSparse toSparse(cuMat &a, int numVals){
