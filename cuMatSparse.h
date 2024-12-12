@@ -269,7 +269,7 @@ public:
         if (status != CUSPARSE_STATUS_SUCCESS) {
                     cout << "ERROR cuMatSparse::s_s_dot cusparseXcsrgeamNnz" << endl;
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
 
     }
 
@@ -322,7 +322,7 @@ public:
                 break;
             }
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
 
     }
 
@@ -354,7 +354,7 @@ public:
         if (status != CUSPARSE_STATUS_SUCCESS) {
             cout << "transpose error" << endl;
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
 
 
@@ -386,7 +386,7 @@ public:
                     cout << "toDense error" << endl;
                 }
 
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
 
         return r;
     }
@@ -406,7 +406,7 @@ public:
                                     cout << "toSparse cusparseSnnz error" << endl;
                         }
 
-            cudaThreadSynchronize();
+            cudaDeviceSynchronize();
 
 
             status = cusparseSdense2csr(r.cuHandle, r.rows, r.cols,
@@ -419,7 +419,7 @@ public:
             if (status != CUSPARSE_STATUS_SUCCESS) {
                         cout << "toSparse cusparseSdense2csr error" << endl;
             }
-            cudaThreadSynchronize();
+            cudaDeviceSynchronize();
 
             return r;
     }
