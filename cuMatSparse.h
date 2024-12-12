@@ -461,65 +461,72 @@ public:
         return r;
     }
 
-    cuMatDense toDense() {
-        cuMatDense r(rows, cols);
-    
-        // Allocate buffer for conversion
+    cuMat toDense(){
+        cuMat r(rows, cols);
+
+        cusparseMatDescr_t descrC;
+        cusparseCreateMatDescr(&descrC);
+        cusparseSetMatType(descrC, CUSPARSE_MATRIX_TYPE_GENERAL);
+        cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
+
+        int rowBlockDim = 2; // Example block dimensions
+        int colBlockDim = 2;
+
+        // Calculate buffer size
         size_t bufferSize = 0;
-        cusparseStatus_t status = cusparseScsr2gebsr_bufferSize(
-        cuHandle,
-        CUSPARSE_DIRECTION_ROW,
-        rows,
-        cols,
-        descr,
-        csrValDevice,
-        csrRowPtrDevice,
-        csrColIndDevice,
-        1, // row block dimension
-        1, // column block dimension
-        &bufferSize
+        cusparseScsr2gebsr_bufferSize(
+            cuHandle,
+            CUSPARSE_DIRECTION_ROW,
+            r.rows,
+            r.cols,
+            descr,
+            csrValDevice,
+            csrRowPtrDevice,
+            csrColIndDevice,
+            descrC,
+            r.bsrValDevice,
+            r.bsrRowPtrDevice,
+            r.bsrColIndDevice,
+            rowBlockDim,
+            colBlockDim,
+            &bufferSize
         );
-    
-        if (status != CUSPARSE_STATUS_SUCCESS) {
-        std::cerr << "Buffer size calculation failed: " << status << std::endl;
-        throw std::runtime_error("toDense conversion failed");
-        }
-    
+
+        // Allocate buffer
         void* buffer;
         cudaMalloc(&buffer, bufferSize);
-    
-        // Perform CSR to dense conversion
-        status = cusparseScsr2gebsr(
-        cuHandle,
-        CUSPARSE_DIRECTION_ROW,
-        rows,
-        cols,
-        descr,
-        csrValDevice,
-        csrRowPtrDevice,
-        csrColIndDevice,
-        descr, // Using the same descriptor for BSR
-        r.mDevice,
-        r.csrRowPtrDevice,
-        r.csrColIndDevice,
-        1, // row block dimension
-        1, // column block dimension
-        buffer
+
+        // Perform CSR to BSR conversion
+        cusparseStatus_t status = cusparseScsr2gebsr(
+            cuHandle,
+            CUSPARSE_DIRECTION_ROW,
+            r.rows,
+            r.cols,
+            descr,
+            csrValDevice,
+            csrRowPtrDevice,
+            csrColIndDevice,
+            descrC,
+            r.bsrValDevice,
+            r.bsrRowPtrDevice,
+            r.bsrColIndDevice,
+            rowBlockDim,
+            colBlockDim,
+            buffer
         );
-    
+
         if (status != CUSPARSE_STATUS_SUCCESS) {
-        std::cerr << "toDense conversion error: " << status << std::endl;
-        cudaFree(buffer);
-        throw std::runtime_error("toDense conversion failed");
+            std::cout << "toDense error" << std::endl;
         }
-    
+
+        // Free buffer
         cudaFree(buffer);
-        cudaDeviceSynchronize();
-    
+        cusparseDestroyMatDescr(descrC);
+
+        cudaThreadSynchronize();
+
         return r;
     }
-
-
 
 
     cuMatSparse toSparse(cuMat &a, int numVals){
