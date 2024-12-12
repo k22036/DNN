@@ -464,49 +464,63 @@ public:
     cuMat toDense() {
         cuMat r(rows, cols);
 
-        // Create Matrix Descriptor
+        // Matrix descriptor for the BSR matrix
         cusparseMatDescr_t descrC;
         cusparseCreateMatDescr(&descrC);
         cusparseSetMatType(descrC, CUSPARSE_MATRIX_TYPE_GENERAL);
         cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
 
-        // Specify block dimensions
+        // Block dimensions for BSR format
         int rowBlockDim = 2; // Example block dimensions
         int colBlockDim = 2;
 
-        // Allocate temporary buffers for BSR format
-        float* bsrValDevice;
-        int* bsrRowPtrDevice;
-        int* bsrColIndDevice;
-
+        // Calculate the buffer size required for CSR to BSR conversion
         size_t bufferSize = 0;
-        cusparseScsr2gebsr_bufferSize(
+        cusparseStatus_t bufferStatus = cusparseScsr2gebsr_bufferSize(
             cuHandle,
             CUSPARSE_DIRECTION_ROW,
-            r.rows,
-            r.cols,
+            rows,
+            cols,
             descr,
             csrValDevice,
             csrRowPtrDevice,
             csrColIndDevice,
-            descrC,
-            bsrValDevice,
-            bsrRowPtrDevice,
-            bsrColIndDevice,
             rowBlockDim,
             colBlockDim,
-            &bufferSize
+            reinterpret_cast<int*>(&bufferSize)
         );
 
+        if (bufferStatus != CUSPARSE_STATUS_SUCCESS) {
+            std::cerr << "Failed to calculate buffer size: " << bufferStatus << std::endl;
+            cusparseDestroyMatDescr(descrC);
+            return r;
+        }
+
+        // Allocate memory for the buffer and BSR format data
         void* buffer;
         cudaMalloc(&buffer, bufferSize);
+
+        float* bsrValDevice;
+        int* bsrRowPtrDevice;
+        int* bsrColIndDevice;
+
+        int bsrRows = (rows + rowBlockDim - 1) / rowBlockDim;
+        int bsrCols = (cols + colBlockDim - 1) / colBlockDim;
+
+        size_t bsrValSize = bsrRows * bsrCols * sizeof(float) * rowBlockDim * colBlockDim;
+        size_t bsrRowPtrSize = (bsrRows + 1) * sizeof(int);
+        size_t bsrColIndSize = bsrCols * sizeof(int);
+
+        cudaMalloc(&bsrValDevice, bsrValSize);
+        cudaMalloc(&bsrRowPtrDevice, bsrRowPtrSize);
+        cudaMalloc(&bsrColIndDevice, bsrColIndSize);
 
         // Perform CSR to BSR conversion
         cusparseStatus_t status = cusparseScsr2gebsr(
             cuHandle,
             CUSPARSE_DIRECTION_ROW,
-            r.rows,
-            r.cols,
+            rows,
+            cols,
             descr,
             csrValDevice,
             csrRowPtrDevice,
@@ -521,13 +535,17 @@ public:
         );
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
-            std::cerr << "toDense error: " << status << std::endl;
+            std::cerr << "CSR to BSR conversion failed: " << status << std::endl;
         }
 
-        // Free temporary resources
+        // Free allocated resources
         cudaFree(buffer);
+        cudaFree(bsrValDevice);
+        cudaFree(bsrRowPtrDevice);
+        cudaFree(bsrColIndDevice);
         cusparseDestroyMatDescr(descrC);
 
+        // Synchronize to ensure all GPU operations are complete
         cudaDeviceSynchronize();
 
         return r;
