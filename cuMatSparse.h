@@ -464,47 +464,22 @@ public:
     cuMat toDense() {
         cuMat r(rows, cols);
 
-        cusparseMatDescr_t descrA, descrC;
+        cusparseMatDescr_t descrA;
         cusparseCreateMatDescr(&descrA);
         cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
         cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO);
 
-        cusparseCreateMatDescr(&descrC);
-        cusparseSetMatType(descrC, CUSPARSE_MATRIX_TYPE_GENERAL);
-        cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ZERO);
-
-        // バッファを確保
-        void* pBuffer = nullptr;
-        size_t bufferSize = 0;
-
-        // bufferSizeを計算
-        cusparseStatus_t status = cusparseScsr2gebsr_bufferSize(
-            cuHandle, CUSPARSE_DIRECTION_ROW, rows, cols, descrA,
+        cusparseStatus_t status = cusparseScsr2dense(
+            cuHandle, rows, cols, descrA,
             csrValDevice, csrRowPtrDevice, csrColIndDevice,
-            descrC, nullptr, rows, &bufferSize);
-
-        if (status != CUSPARSE_STATUS_SUCCESS) {
-            std::cerr << "Buffer size calculation error" << std::endl;
-            return r;
-        }
-
-        cudaMalloc(&pBuffer, bufferSize);  // バッファのメモリを確保
-
-        // 実際の変換
-        status = cusparseScsr2gebsr(
-            cuHandle, CUSPARSE_DIRECTION_ROW, rows, cols, descrA,
-            csrValDevice, csrRowPtrDevice, csrColIndDevice,
-            descrC, r.mDevice, r.rows, r.cols, 1, 1, pBuffer);
+            r.mDevice, rows);
 
         if (status != CUSPARSE_STATUS_SUCCESS) {
             std::cerr << "toDense error" << std::endl;
+            throw std::runtime_error("toDense error");
         }
 
-        // CUDA デバイス同期
         cudaDeviceSynchronize();
-
-        // バッファの解放
-        cudaFree(pBuffer);
 
         return r;
     }
