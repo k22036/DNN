@@ -559,8 +559,8 @@ public:
         // Allocate memory for nnz per row/column
         int *nnzPerRowColumn;
         cudaMalloc((void **)&nnzPerRowColumn, sizeof(int) * r.rows);
-        // int *nnzTotalDevHostPtr;
-        // cudaMalloc((void**)&nnzTotalDevHostPtr, sizeof(int));
+        int *nnzTotalDevHostPtr;
+        cudaMalloc((void *)&nnzTotalDevHostPtr, sizeof(int));
 
         // Compute the number of non-zero elements per row and the total nnz
         cusparseStatus_t status = cusparseSnnz(
